@@ -17,8 +17,10 @@ provider:
           Action:
             - "dynamodb:PutItem"
             - "dynamodb:GetItem"
-            # - "dynamodb:DeleteItem"
+            - "dynamodb:DeleteItem"
             - "dynamodb:Scan"
+            - "dynamodb:Query"
+
           Resource:
             - { "Fn::GetAtt": ["SignedDataPool", "Arn"] }
 
@@ -45,7 +47,7 @@ functions:
     handler: src/handlers.getData
     events:
       - httpApi:
-          path: /{beaconId}
+          path: /{airnode}
           method: get
   listData:
     handler: src/handlers.listData
@@ -67,16 +69,12 @@ resources:
           ReadCapacityUnits: 1
           WriteCapacityUnits: 1
         AttributeDefinitions:
-          - AttributeName: beaconId
+          - AttributeName: airnode
             AttributeType: S
-          # - AttributeName: airnode
-          #   AttributeType: S
-          # - AttributeName: templateId
-          #   AttributeType: S
+          - AttributeName: templateId
+            AttributeType: S
         KeySchema:
-          - AttributeName: beaconId
+          - AttributeName: airnode
             KeyType: HASH
-          # - AttributeName: airnode
-          #   KeyType: HASH
-          # - AttributeName: templateId
-          #   KeyType: RANGE
+          - AttributeName: templateId
+            KeyType: RANGE

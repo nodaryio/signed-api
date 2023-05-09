@@ -40,7 +40,9 @@ export const upsertData = async (event: APIGatewayProxyEvent): Promise<APIGatewa
   if (signedData.beaconId !== goDeriveBeaconId.data) return { statusCode: 400, headers, body: `beaconId is invalid` };
 
   const goReadDb = await go(() =>
-    docClient.get({ TableName: tableName, Key: { beaconId: signedData.beaconId } }).promise(),
+    docClient
+      .get({ TableName: tableName, Key: { airnode: signedData.airnode, templateId: signedData.templateId } })
+      .promise(),
   );
   if (!goReadDb.success)
     return {
@@ -60,23 +62,24 @@ export const upsertData = async (event: APIGatewayProxyEvent): Promise<APIGatewa
 };
 
 export const getData = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
-  if (isNil(event.pathParameters?.beaconId))
-    return { statusCode: 400, headers, body: "invalid request, missing path parameter" };
+  if (isNil(event.pathParameters?.airnode))
+    return { statusCode: 400, headers, body: "invalid request, missing path parameter airnode address" };
 
   const goReadDb = await go(() =>
-    docClient.get({ TableName: tableName, Key: { beaconId: event.pathParameters?.beaconId } }).promise(),
+    docClient
+      .query({
+        TableName: tableName,
+        KeyConditionExpression: "airnode = :airnode",
+        ExpressionAttributeValues: {
+          ":airnode": event.pathParameters?.airnode,
+        },
+      })
+      .promise(),
   );
   if (!goReadDb.success)
     return { statusCode: 500, headers, body: `unable to get signed data from dynamodb, ${goReadDb.error.message}` };
 
-  if (isNil(goReadDb.data.Item))
-    return {
-      statusCode: 404,
-      headers,
-      body: `signed data for given beaconId (${event.pathParameters?.beaconId}) not found`,
-    };
-
-  return { statusCode: 200, headers, body: JSON.stringify(goReadDb.data.Item) };
+  return { statusCode: 200, headers, body: JSON.stringify({ count: goReadDb.data.Count, data: goReadDb.data.Items }) };
 };
 
 export const listData = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
@@ -84,5 +87,5 @@ export const listData = async (event: APIGatewayProxyEvent): Promise<APIGatewayP
   if (!goScanDb.success)
     return { statusCode: 500, headers, body: `unable to scan dynamodb, ${goScanDb.error.message}` };
 
-  return { statusCode: 200, headers, body: JSON.stringify(goScanDb.data.Items) };
+  return { statusCode: 200, headers, body: JSON.stringify({ count: goScanDb.data.Count, data: goScanDb.data.Items }) };
 };
