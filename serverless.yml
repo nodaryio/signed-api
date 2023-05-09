@@ -1,14 +1,17 @@
-service: nodary-stamp-pool
-
+service: nodary-signature-pool
+useDotenv: true
 frameworkVersion: "3"
 
 provider:
   name: aws
   runtime: nodejs16.x
-  lambdaHashingVersion: 20201221
 
   stage: dev
-  region: eu-west-1
+  region: us-east-2
+
+  httpApi:
+    disableDefaultEndpoint: true
+    id: ${env:HTTP_API_ID}
 
   iam:
     role:
@@ -30,11 +33,11 @@ provider:
 
 # you can add packaging information here
 # package:
-#  patterns:
-#    - '!exclude-me.js'
-#    - '!exclude-me-dir/**'
-#    - include-me.js
-#    - include-me-dir/**
+#   patterns:
+#     - "!.build/**"
+#     - "!.vscode/**"
+#     - "!node_modules/**"
+#     - "!test/**"
 
 functions:
   upsertData:
