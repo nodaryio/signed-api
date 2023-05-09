@@ -1,6 +1,6 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
 import AWS from "aws-sdk";
-import { signedDataSchema } from "./types";
+import { evmAddressSchema, signedDataSchema } from "./types";
 import { go, goSync } from "@api3/promise-utils";
 import { isNil } from "lodash";
 import { deriveBeaconId, recoverSignerAddress, testSignedData } from "./evm";
@@ -64,6 +64,10 @@ export const upsertData = async (event: APIGatewayProxyEvent): Promise<APIGatewa
 export const getData = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
   if (isNil(event.pathParameters?.airnode))
     return { statusCode: 400, headers, body: "invalid request, missing path parameter airnode address" };
+
+  const goValidateSchema = await go(() => evmAddressSchema.parseAsync(event.pathParameters?.airnode));
+  if (!goValidateSchema.success)
+    return { statusCode: 400, headers, body: `invalid request, path parameter needs to be an EVM address` };
 
   const goReadDb = await go(() =>
     docClient
