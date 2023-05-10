@@ -5,6 +5,18 @@ import { go, goSync } from "@api3/promise-utils";
 import { isNil } from "lodash";
 import { deriveBeaconId, recoverSignerAddress } from "./evm";
 
+if (process.env.LOCAL_DEV) {
+  require("aws-sdk/lib/maintenance_mode_message").suppress = true;
+  const localAWSConfig = {
+    accessKeyId: "not-important",
+    secretAccessKey: "not-important",
+    region: "local",
+    endpoint: "http://localhost:8000",
+  };
+  AWS.config.update(localAWSConfig);
+  console.log("AWS SDK was configured for local development.");
+}
+
 const docClient = new AWS.DynamoDB.DocumentClient();
 const tableName = "signedDataPool";
 const headers = {
