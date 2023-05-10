@@ -9,9 +9,9 @@ const { PORT } = process.env;
 const port = PORT || 8090;
 const app = express();
 
-app.post("/", async (req, res) => {
+app.post("/", express.json(), async (req, res) => {
   const result = await upsertData({
-    body: req.body,
+    body: JSON.stringify(req.body),
   } as APIGatewayProxyEvent);
   res.status(result.statusCode).header(result.headers).send(result.body);
 });
