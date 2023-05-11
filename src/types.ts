@@ -19,4 +19,11 @@ export const signedDataSchema = z.object({
   signature: z.string(),
 });
 
+export const batchSignedDataSchema = z.array(signedDataSchema);
+
 export type SignedData = z.infer<typeof signedDataSchema>;
+export type BatchSignedData = z.infer<typeof batchSignedDataSchema>;
+
+export interface PromiseError<T> extends Error {
+  reason: T;
+}

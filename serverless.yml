@@ -45,6 +45,12 @@ functions:
     events:
       - httpApi:
           path: /
+          method: put
+  batchUpsertData:
+    handler: src/handlers.batchUpsertData
+    events:
+      - httpApi:
+          path: /
           method: post
   getData:
     handler: src/handlers.getData

@@ -2,15 +2,22 @@ import * as dotenv from "dotenv"; // see https://github.com/motdotla/dotenv#how-
 dotenv.config();
 import express from "express";
 import { APIGatewayProxyEvent } from "aws-lambda";
-import { getData, listData, upsertData } from "./handlers";
+import { getData, listData, batchUpsertData, upsertData } from "./handlers";
 
 const { PORT } = process.env;
 
 const port = PORT || 8090;
 const app = express();
 
-app.post("/", express.json(), async (req, res) => {
+app.put("/", express.json(), async (req, res) => {
   const result = await upsertData({
+    body: JSON.stringify(req.body),
+  } as APIGatewayProxyEvent);
+  res.status(result.statusCode).header(result.headers).send(result.body);
+});
+
+app.post("/", express.json(), async (req, res) => {
+  const result = await batchUpsertData({
     body: JSON.stringify(req.body),
   } as APIGatewayProxyEvent);
   res.status(result.statusCode).header(result.headers).send(result.body);

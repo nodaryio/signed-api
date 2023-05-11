@@ -1,6 +1,6 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
 import AWS from "aws-sdk";
-import { SignedData, evmAddressSchema, signedDataSchema } from "./types";
+import { PromiseError, SignedData, batchSignedDataSchema, evmAddressSchema, signedDataSchema } from "./types";
 import { go, goSync } from "@api3/promise-utils";
 import { isNil } from "lodash";
 import { deriveBeaconId, recoverSignerAddress } from "./evm";
@@ -42,7 +42,7 @@ export const upsertData = async (event: APIGatewayProxyEvent): Promise<APIGatewa
   if (!goValidateSchema.success)
     return generateErrorResponse(
       400,
-      "Invalid request, body must fit signed data schema",
+      "Invalid request, body must fit schema for signed data",
       goValidateSchema.error.message,
     );
 
@@ -83,7 +83,99 @@ export const upsertData = async (event: APIGatewayProxyEvent): Promise<APIGatewa
   if (!goWriteDb.success)
     return generateErrorResponse(500, "Unable to send signed data to database", goWriteDb.error.message);
 
-  return { statusCode: 201, headers, body: JSON.stringify(signedData) };
+  return { statusCode: 201, headers, body: JSON.stringify({ count: 1 }) };
+};
+
+export const batchUpsertData = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
+  if (isNil(event.body)) return generateErrorResponse(400, "Invalid request, http body is missing");
+
+  const goJsonParseBody = goSync(() => JSON.parse(event.body as string));
+  if (!goJsonParseBody.success) return generateErrorResponse(400, "Invalid request, body must be in JSON");
+
+  const goValidateSchema = await go(() => batchSignedDataSchema.parseAsync(goJsonParseBody.data));
+  if (!goValidateSchema.success)
+    return generateErrorResponse(
+      400,
+      "Invalid request, body must fit schema for batch of signed data",
+      goValidateSchema.error.message,
+    );
+
+  const batchSignedData = goValidateSchema.data;
+
+  // Validations have same behaviour with Promise.all, if one of them is failed, all batch will be dropped
+
+  // Phase 1: Check whether any duplications exist
+  if (
+    batchSignedData.length !==
+    new Set(batchSignedData.map(({ airnode, templateId }) => airnode.concat(templateId))).size
+  )
+    return generateErrorResponse(400, "No duplications are allowed");
+
+  // Phase 2: Check validations that can be done without using http request, returns fail response in first error
+  const phase2Promises = batchSignedData.map(async (signedData) => {
+    const goRecoverSigner = goSync(() => recoverSignerAddress(signedData));
+    if (!goRecoverSigner.success)
+      return Promise.reject(
+        generateErrorResponse(400, "Unable to recover signer address", goRecoverSigner.error.message, signedData),
+      );
+
+    if (signedData.airnode !== goRecoverSigner.data)
+      return Promise.reject(generateErrorResponse(400, "Signature is invalid", undefined, signedData));
+
+    const goDeriveBeaconId = goSync(() => deriveBeaconId(signedData.airnode, signedData.templateId));
+    if (!goDeriveBeaconId.success)
+      return Promise.reject(
+        generateErrorResponse(
+          400,
+          "Unable to derive beaconId by given airnode and templateId",
+          goDeriveBeaconId.error.message,
+          signedData,
+        ),
+      );
+
+    if (signedData.beaconId !== goDeriveBeaconId.data)
+      return Promise.reject(generateErrorResponse(400, "beaconId is invalid", undefined, signedData));
+  });
+
+  const goPhase2Results = await go<any, PromiseError<APIGatewayProxyResult>>(() => Promise.all(phase2Promises));
+  if (!goPhase2Results.success) return goPhase2Results.error.reason;
+
+  // Phase 3: Get current signed data to compare timestamp, returns fail response in first error
+  const phase3Promises = batchSignedData.map(async (signedData) => {
+    const goReadDb = await go(() =>
+      docClient
+        .get({ TableName: tableName, Key: { airnode: signedData.airnode, templateId: signedData.templateId } })
+        .promise(),
+    );
+    if (!goReadDb.success)
+      return Promise.reject(
+        generateErrorResponse(
+          500,
+          "Unable to get signed data from database to validate timestamp",
+          goReadDb.error.message,
+          signedData,
+        ),
+      );
+
+    if (!isNil(goReadDb.data.Item) && parseInt(signedData.timestamp) <= parseInt(goReadDb.data.Item.timestamp))
+      return Promise.reject(generateErrorResponse(400, "Request isn't updating the timestamp", undefined, signedData));
+  });
+
+  const goPhase3Results = await go<any, PromiseError<APIGatewayProxyResult>>(() => Promise.all(phase3Promises));
+  if (!goPhase3Results.success) return goPhase3Results.error.reason;
+
+  // Phase 4: Write batch of validated data to the database
+  const goBatchWriteDb = await go(() =>
+    docClient
+      .batchWrite({
+        RequestItems: { [tableName]: batchSignedData.map((signedData) => ({ PutRequest: { Item: signedData } })) },
+      })
+      .promise(),
+  );
+  if (!goBatchWriteDb.success)
+    return generateErrorResponse(500, "Unable to send batch of signed data to database", goBatchWriteDb.error.message);
+
+  return { statusCode: 201, headers, body: JSON.stringify({ count: batchSignedData.length }) };
 };
 
 export const getData = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
