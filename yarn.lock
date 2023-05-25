@@ -10,14 +10,6 @@
     d "1"
     es5-ext "^0.10.47"
 
-"@api3/airnode-abi@^0.11.0":
-  version "0.11.0"
-  resolved "https://registry.yarnpkg.com/@api3/airnode-abi/-/airnode-abi-0.11.0.tgz#6be5db82ad87ea6213ae8ba37d23801daf9e89dd"
-  integrity sha512-eaU3AOSuUBvTDfpzbLn3bdE7qf60NZljM6sIQizd5Z1VSx8iX+blc5Hj6vnTzo2Czh1+9W7ORazxcIksxXnhFg==
-  dependencies:
-    ethers "^5.7.2"
-    lodash "^4.17.21"
-
 "@api3/promise-utils@0.3.0":
   version "0.3.0"
   resolved "https://registry.yarnpkg.com/@api3/promise-utils/-/promise-utils-0.3.0.tgz#e7ebf92bfd8c1d39983321fc5445070c51fce176"
@@ -645,14 +637,14 @@
   integrity sha512-K0VQKziLUWkVKiRVrx4a40iPaxTUefQmjtkQofBkYRcoaaL/8rhwDWww9qWbrgicNOgnpIsMxyNIUM4+n6dUIA==
 
 "@types/node@*":
-  version "20.0.0"
-  resolved "https://registry.yarnpkg.com/@types/node/-/node-20.0.0.tgz#081d9afd28421be956c1a47ced1c9a0034b467e2"
-  integrity sha512-cD2uPTDnQQCVpmRefonO98/PPijuOnnEy5oytWJFPY1N9aJCz2wJ5kSGWO+zJoed2cY2JxQh6yBuUq4vIn61hw==
+  version "20.1.2"
+  resolved "https://registry.yarnpkg.com/@types/node/-/node-20.1.2.tgz#8fd63447e3f99aba6c3168fd2ec4580d5b97886f"
+  integrity sha512-CTO/wa8x+rZU626cL2BlbCDzydgnFNgc19h4YvizpTO88MFQxab8wqisxaofQJ/9bLGugRdWIuX/TbIs6VVF6g==
 
 "@types/node@^18.16.3":
-  version "18.16.4"
-  resolved "https://registry.yarnpkg.com/@types/node/-/node-18.16.4.tgz#dfb38f0f3fb045fca84ffa7783233c63009d8a92"
-  integrity sha512-LUhvPmAKAbgm+p/K11IWszLZVoZDlMF4NRmqbhEzDz/CnCuehPkZXwZbBCKGJsgjnuVejotBwM7B3Scrq4EqDw==
+  version "18.16.7"
+  resolved "https://registry.yarnpkg.com/@types/node/-/node-18.16.7.tgz#86d0ba2541f808cb78d4dc5d3e40242a349d6db8"
+  integrity sha512-MFg7ua/bRtnA1hYE3pVyWxGd/r7aMqjNOdHvlSsXV3n8iaeGKkOaPzpJh6/ovf4bEXWcojkeMJpTsq3mzXW4IQ==
 
 "@types/qs@*":
   version "6.9.7"
@@ -872,9 +864,9 @@ aws-lambda@^1.0.7:
     watchpack "^2.0.0-beta.10"
 
 aws-sdk@^2.1352.0, aws-sdk@^2.1370.0, aws-sdk@^2.814.0:
-  version "2.1372.0"
-  resolved "https://registry.yarnpkg.com/aws-sdk/-/aws-sdk-2.1372.0.tgz#20bc4afb77714bc101b803c094e8fe8d14e2d472"
-  integrity sha512-SkpBohTXS7yJL6I/k+Dk5o2k8xgyVKs1n9zo08DvCaheSmvpMKQHqdj/wCbf1cjLRFr/Ckc1YGDj3SsikPsBgw==
+  version "2.1376.0"
+  resolved "https://registry.yarnpkg.com/aws-sdk/-/aws-sdk-2.1376.0.tgz#26b8e021cb62ef4dab5ce991fe7c84cf234ea1f2"
+  integrity sha512-ja/Xnft8BDcDEz786VJFPrWpuWpOgsA+QzBAwzsjYeIolQ/vEs/bbXkoS085fOoeAPEhYWQh9wog7cVvrQPJFQ==
   dependencies:
     buffer "4.9.2"
     events "1.1.1"
@@ -1611,7 +1603,7 @@ etag@~1.8.1:
   resolved "https://registry.yarnpkg.com/etag/-/etag-1.8.1.tgz#41ae2eeb65efa62268aebfea83ac7d79299b0887"
   integrity sha512-aIL5Fx7mawVa300al2BnEE4iNvo1qETxLrPI/o05L7z6go7fCw1J6EQmbK4FmJ2AS7kgVF/KEZWufBfdClMcPg==
 
-ethers@5.*, ethers@^5.7.2:
+ethers@5.*:
   version "5.7.2"
   resolved "https://registry.yarnpkg.com/ethers/-/ethers-5.7.2.tgz#3a7deeabbb8c030d4126b24f84e525466145872e"
   integrity sha512-wswUsmWo1aOK8rR7DIKiWSw9DbLWe6x98Jrn8wcTflTVvaXhAMaB5zGAXy0GYQEQp9iO1iSHWVyARQm11zUtyg==
@@ -2773,9 +2765,9 @@ node-dir@^0.1.17:
     minimatch "^3.0.2"
 
 node-fetch@^2.6.7, node-fetch@^2.6.8, node-fetch@^2.6.9:
-  version "2.6.9"
-  resolved "https://registry.yarnpkg.com/node-fetch/-/node-fetch-2.6.9.tgz#7c7f744b5cc6eb5fd404e0c7a9fec630a55657e6"
-  integrity sha512-DJm/CJkZkRjKKj4Zi4BsKVZh3ValV5IR5s7LVZnW+6YMh0W1BfNA8XSs6DLMGYlId5F3KnA70uu2qepcR08Qqg==
+  version "2.6.11"
+  resolved "https://registry.yarnpkg.com/node-fetch/-/node-fetch-2.6.11.tgz#cde7fc71deef3131ef80a738919f999e6edfff25"
+  integrity sha512-4I6pdBY1EthSqDmJkiNk3JIT8cswwR9nfeW/cPdUagJYEQG7R95WRH74wpz7ma8Gh/9dI9FP+OU+0E4FvtA55w==
   dependencies:
     whatwg-url "^5.0.0"
 

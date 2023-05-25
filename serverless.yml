@@ -1,14 +1,17 @@
-service: nodary-stamp-pool
-
+service: nodary-signature-pool
+useDotenv: true
 frameworkVersion: "3"
 
 provider:
   name: aws
   runtime: nodejs16.x
-  lambdaHashingVersion: 20201221
 
   stage: dev
-  region: eu-west-1
+  region: us-east-2
+
+  httpApi:
+    disableDefaultEndpoint: true
+    id: ${env:HTTP_API_ID}
 
   iam:
     role:
@@ -17,26 +20,32 @@ provider:
           Action:
             - "dynamodb:PutItem"
             - "dynamodb:GetItem"
-            # - "dynamodb:DeleteItem"
             - "dynamodb:Scan"
+            - "dynamodb:Query"
+            - "dynamodb:BatchWriteItem"
+
           Resource:
             - { "Fn::GetAtt": ["SignedDataPool", "Arn"] }
 
-# you can define service wide environment variables here
-#  environment:
-#    variable1: value1
+  environment:
+    MAX_BATCH_SIZE: ${env:MAX_BATCH_SIZE}
 
-# you can add packaging information here
 # package:
-#  patterns:
-#    - '!exclude-me.js'
-#    - '!exclude-me-dir/**'
-#    - include-me.js
-#    - include-me-dir/**
+#   patterns:
+#     - "!.build/**"
+#     - "!.vscode/**"
+#     - "!node_modules/**"
+#     - "!test/**"
 
 functions:
   upsertData:
     handler: src/handlers.upsertData
+    events:
+      - httpApi:
+          path: /
+          method: put
+  batchUpsertData:
+    handler: src/handlers.batchUpsertData
     events:
       - httpApi:
           path: /
@@ -45,7 +54,7 @@ functions:
     handler: src/handlers.getData
     events:
       - httpApi:
-          path: /{beaconId}
+          path: /{airnode}
           method: get
   listData:
     handler: src/handlers.listData
@@ -67,16 +76,12 @@ resources:
           ReadCapacityUnits: 1
           WriteCapacityUnits: 1
         AttributeDefinitions:
-          - AttributeName: beaconId
+          - AttributeName: airnode
             AttributeType: S
-          # - AttributeName: airnode
-          #   AttributeType: S
-          # - AttributeName: templateId
-          #   AttributeType: S
+          - AttributeName: templateId
+            AttributeType: S
         KeySchema:
-          - AttributeName: beaconId
+          - AttributeName: airnode
             KeyType: HASH
-          # - AttributeName: airnode
-          #   KeyType: HASH
-          # - AttributeName: templateId
-          #   KeyType: RANGE
+          - AttributeName: templateId
+            KeyType: RANGE
