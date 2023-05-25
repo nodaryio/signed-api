@@ -1,9 +1,11 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
 import AWS from "aws-sdk";
-import { PromiseError, SignedData, batchSignedDataSchema, evmAddressSchema, signedDataSchema } from "./types";
+import { PromiseError, batchSignedDataSchema, evmAddressSchema, signedDataSchema } from "./types";
 import { go, goSync } from "@api3/promise-utils";
-import { isNil } from "lodash";
+import { isEmpty, isNil, size } from "lodash";
 import { deriveBeaconId, recoverSignerAddress } from "./evm";
+import { generateErrorResponse, isBatchUnique } from "./utils";
+import { COMMON_HEADERS, MAX_BATCH_SIZE } from "./constants";
 
 if (process.env.LOCAL_DEV) {
   require("aws-sdk/lib/maintenance_mode_message").suppress = true;
@@ -19,18 +21,6 @@ if (process.env.LOCAL_DEV) {
 
 const docClient = new AWS.DynamoDB.DocumentClient();
 const tableName = "signedDataPool";
-const headers = {
-  "content-type": "application/json",
-};
-
-const generateErrorResponse = (
-  statusCode: number,
-  message: string,
-  detail?: string,
-  causing?: SignedData,
-): APIGatewayProxyResult => {
-  return { statusCode, headers, body: JSON.stringify({ message, detail, causing }) };
-};
 
 export const upsertData = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
   if (isNil(event.body)) return generateErrorResponse(400, "Invalid request, http body is missing");
@@ -83,7 +73,7 @@ export const upsertData = async (event: APIGatewayProxyEvent): Promise<APIGatewa
   if (!goWriteDb.success)
     return generateErrorResponse(500, "Unable to send signed data to database", goWriteDb.error.message);
 
-  return { statusCode: 201, headers, body: JSON.stringify({ count: 1 }) };
+  return { statusCode: 201, headers: COMMON_HEADERS, body: JSON.stringify({ count: 1 }) };
 };
 
 export const batchUpsertData = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
@@ -102,17 +92,25 @@ export const batchUpsertData = async (event: APIGatewayProxyEvent): Promise<APIG
 
   const batchSignedData = goValidateSchema.data;
 
-  // Validations have same behaviour with Promise.all, if one of them is failed, all batch will be dropped
+  /*
+    The following validations behave similarly to Promise.all.
+    If any of the validations fail, the entire batch will be dropped.
+    This approach ensures consistent processing of the batch,
+    preventing partial or inconsistent results.
+  */
 
-  // Phase 1: Check whether any duplications exist
-  if (
-    batchSignedData.length !==
-    new Set(batchSignedData.map(({ airnode, templateId }) => airnode.concat(templateId))).size
-  )
-    return generateErrorResponse(400, "No duplications are allowed");
+  // Phase 1: Check whether batch is empty
+  if (isEmpty(batchSignedData)) return generateErrorResponse(400, "No signed data to push");
 
-  // Phase 2: Check validations that can be done without using http request, returns fail response in first error
-  const phase2Promises = batchSignedData.map(async (signedData) => {
+  // Phase 2: Check whether the size of batch exceeds a maximum batch size
+  if (size(batchSignedData) > MAX_BATCH_SIZE)
+    return generateErrorResponse(400, `Maximum batch size (${MAX_BATCH_SIZE}) exceeded`);
+
+  // Phase 3: Check whether any duplications exist
+  if (!isBatchUnique(batchSignedData)) return generateErrorResponse(400, "No duplications are allowed");
+
+  // Phase 4: Check validations that can be done without using http request, returns fail response in first error
+  const phase4Promises = batchSignedData.map(async (signedData) => {
     const goRecoverSigner = goSync(() => recoverSignerAddress(signedData));
     if (!goRecoverSigner.success)
       return Promise.reject(
@@ -137,11 +135,11 @@ export const batchUpsertData = async (event: APIGatewayProxyEvent): Promise<APIG
       return Promise.reject(generateErrorResponse(400, "beaconId is invalid", undefined, signedData));
   });
 
-  const goPhase2Results = await go<any, PromiseError<APIGatewayProxyResult>>(() => Promise.all(phase2Promises));
-  if (!goPhase2Results.success) return goPhase2Results.error.reason;
+  const goPhase4Results = await go<any, PromiseError<APIGatewayProxyResult>>(() => Promise.all(phase4Promises));
+  if (!goPhase4Results.success) return goPhase4Results.error.reason;
 
-  // Phase 3: Get current signed data to compare timestamp, returns fail response in first error
-  const phase3Promises = batchSignedData.map(async (signedData) => {
+  // Phase 5: Get current signed data to compare timestamp, returns fail response in first error
+  const phase5Promises = batchSignedData.map(async (signedData) => {
     const goReadDb = await go(() =>
       docClient
         .get({ TableName: tableName, Key: { airnode: signedData.airnode, templateId: signedData.templateId } })
@@ -161,10 +159,10 @@ export const batchUpsertData = async (event: APIGatewayProxyEvent): Promise<APIG
       return Promise.reject(generateErrorResponse(400, "Request isn't updating the timestamp", undefined, signedData));
   });
 
-  const goPhase3Results = await go<any, PromiseError<APIGatewayProxyResult>>(() => Promise.all(phase3Promises));
-  if (!goPhase3Results.success) return goPhase3Results.error.reason;
+  const goPhase5Results = await go<any, PromiseError<APIGatewayProxyResult>>(() => Promise.all(phase5Promises));
+  if (!goPhase5Results.success) return goPhase5Results.error.reason;
 
-  // Phase 4: Write batch of validated data to the database
+  // Phase 6: Write batch of validated data to the database
   const goBatchWriteDb = await go(() =>
     docClient
       .batchWrite({
@@ -175,7 +173,7 @@ export const batchUpsertData = async (event: APIGatewayProxyEvent): Promise<APIG
   if (!goBatchWriteDb.success)
     return generateErrorResponse(500, "Unable to send batch of signed data to database", goBatchWriteDb.error.message);
 
-  return { statusCode: 201, headers, body: JSON.stringify({ count: batchSignedData.length }) };
+  return { statusCode: 201, headers: COMMON_HEADERS, body: JSON.stringify({ count: batchSignedData.length }) };
 };
 
 export const getData = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
@@ -200,12 +198,20 @@ export const getData = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
   if (!goReadDb.success)
     return generateErrorResponse(500, "Unable to get signed data from database", goReadDb.error.message);
 
-  return { statusCode: 200, headers, body: JSON.stringify({ count: goReadDb.data.Count, data: goReadDb.data.Items }) };
+  return {
+    statusCode: 200,
+    headers: COMMON_HEADERS,
+    body: JSON.stringify({ count: goReadDb.data.Count, data: goReadDb.data.Items }),
+  };
 };
 
 export const listData = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
   const goScanDb = await go(() => docClient.scan({ TableName: tableName }).promise());
   if (!goScanDb.success) return generateErrorResponse(500, "Unable to scan database", goScanDb.error.message);
 
-  return { statusCode: 200, headers, body: JSON.stringify({ count: goScanDb.data.Count, data: goScanDb.data.Items }) };
+  return {
+    statusCode: 200,
+    headers: COMMON_HEADERS,
+    body: JSON.stringify({ count: goScanDb.data.Count, data: goScanDb.data.Items }),
+  };
 };
