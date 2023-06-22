@@ -1,6 +1,7 @@
 # Nodary Signature Pool
 
-This repository contains code for a Nodary Signature Pool, which utilizes serverless infrastructure and is deployed on AWS. It provides endpoints to handle signed data for a specific airnode.
+This repository contains code for a Nodary Signature Pool, which utilizes serverless infrastructure and is deployed on
+AWS. It provides endpoints to handle signed data for a specific airnode.
 
 ## Technologies Used
 
@@ -109,4 +110,5 @@ curl http://your-api-endpoint/
 
 ## References
 
-- To configure Cloudflare for caching, AWS API Gateway for custom domain support see [the page](https://kylebarron.dev/blog/caching-lambda-functions-cloudflare).
+- To configure Cloudflare for caching, AWS API Gateway for custom domain support see
+  [the page](https://kylebarron.dev/blog/caching-lambda-functions-cloudflare).
