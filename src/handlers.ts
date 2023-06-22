@@ -5,7 +5,7 @@ import { go, goSync } from "@api3/promise-utils";
 import { isEmpty, isNil, size } from "lodash";
 import { deriveBeaconId, recoverSignerAddress } from "./evm";
 import { generateErrorResponse, isBatchUnique } from "./utils";
-import { COMMON_HEADERS, MAX_BATCH_SIZE } from "./constants";
+import { CACHE_HEADERS, COMMON_HEADERS, MAX_BATCH_SIZE } from "./constants";
 
 if (process.env.LOCAL_DEV) {
   require("aws-sdk/lib/maintenance_mode_message").suppress = true;
@@ -200,7 +200,7 @@ export const getData = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
 
   return {
     statusCode: 200,
-    headers: COMMON_HEADERS,
+    headers:  {...COMMON_HEADERS, ...CACHE_HEADERS},
     body: JSON.stringify({ count: goReadDb.data.Count, data: goReadDb.data.Items }),
   };
 };
@@ -211,7 +211,7 @@ export const listData = async (event: APIGatewayProxyEvent): Promise<APIGatewayP
 
   return {
     statusCode: 200,
-    headers: COMMON_HEADERS,
+    headers: {...COMMON_HEADERS, ...CACHE_HEADERS},
     body: JSON.stringify({ count: goScanDb.data.Count, data: goScanDb.data.Items }),
   };
 };

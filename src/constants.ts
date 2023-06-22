@@ -5,3 +5,8 @@ export const COMMON_HEADERS = {
   'access-control-allow-origin': '*',
   'access-control-allow-methods': '*'
 };
+
+export const CACHE_HEADERS = {
+  'cache-control': 'no-store', // Disable browser-caching
+  'cdn-cache-control': 'max-age=10', // Enable CDN caching and set to 10
+};
