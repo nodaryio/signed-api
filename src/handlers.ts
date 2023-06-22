@@ -196,12 +196,13 @@ export const getData = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
       .promise(),
   );
   if (!goReadDb.success)
-    return generateErrorResponse(500, "Unable to get signed data from database", goReadDb.error.message);
+  // Transform array of signed data to be in form {[beaconId]: SignedData}
+  const data = goReadDb.data.Items?.reduce((acc, Item) => ({ ...acc, [Item.beaconId]: Item }), {});
 
   return {
     statusCode: 200,
-    headers:  {...COMMON_HEADERS, ...CACHE_HEADERS},
-    body: JSON.stringify({ count: goReadDb.data.Count, data: goReadDb.data.Items }),
+    headers: { ...COMMON_HEADERS, ...CACHE_HEADERS },
+    body: JSON.stringify({ count: goReadDb.data.Count, data }),
   };
 };
 
