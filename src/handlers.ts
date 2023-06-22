@@ -1,8 +1,8 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import AWS from 'aws-sdk';
-import { PromiseError, batchSignedDataSchema, evmAddressSchema, signedDataSchema } from './types';
+import { isEmpty, isNil, omit, size, uniqBy } from 'lodash';
 import { go, goSync } from '@api3/promise-utils';
-import { isEmpty, isNil, size } from 'lodash';
+import { PromiseError, batchSignedDataSchema, evmAddressSchema, signedDataSchema } from './types';
 import { deriveBeaconId, recoverSignerAddress } from './evm';
 import { generateErrorResponse, isBatchUnique } from './utils';
 import { CACHE_HEADERS, COMMON_HEADERS, MAX_BATCH_SIZE } from './constants';
@@ -208,13 +208,15 @@ export const getData = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
   };
 };
 
-export const listData = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
+export const listData = async (_event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
   const goScanDb = await go(() => docClient.scan({ TableName: tableName }).promise());
   if (!goScanDb.success) return generateErrorResponse(500, 'Unable to scan database', goScanDb.error.message);
 
+  const airnodeAddresses = uniqBy(goScanDb.data.Items, 'airnode').map((Item) => Item.airnode);
+
   return {
     statusCode: 200,
-    headers: { ...COMMON_HEADERS, ...CACHE_HEADERS },
-    body: JSON.stringify({ count: goScanDb.data.Count, data: goScanDb.data.Items }),
+    headers: { ...COMMON_HEADERS, ...CACHE_HEADERS, 'cdn-cache-control': 'max-age=300' },
+    body: JSON.stringify({ count: airnodeAddresses.length, 'available-airnodes': airnodeAddresses }),
   };
 };
