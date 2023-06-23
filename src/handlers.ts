@@ -1,6 +1,6 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import AWS from 'aws-sdk';
-import { isEmpty, isNil, omit, size, uniqBy } from 'lodash';
+import { chunk, isEmpty, isNil, omit, size, uniqBy } from 'lodash';
 import { go, goSync } from '@api3/promise-utils';
 import { PromiseError, batchSignedDataSchema, evmAddressSchema, signedDataSchema } from './types';
 import { deriveBeaconId, recoverSignerAddress } from './evm';
@@ -164,11 +164,9 @@ export const batchUpsertData = async (event: APIGatewayProxyEvent): Promise<APIG
 
   // Phase 6: Write batch of validated data to the database
   const goBatchWriteDb = await go(() =>
-    docClient
-      .batchWrite({
-        RequestItems: { [tableName]: batchSignedData.map((signedData) => ({ PutRequest: { Item: signedData } })) },
-      })
-      .promise()
+    paginateBatchWrite({
+      RequestItems: { [tableName]: batchSignedData.map((signedData) => ({ PutRequest: { Item: signedData } })) },
+    })
   );
   if (!goBatchWriteDb.success)
     return generateErrorResponse(500, 'Unable to send batch of signed data to database', goBatchWriteDb.error.message);
@@ -219,4 +217,25 @@ export const listData = async (_event: APIGatewayProxyEvent): Promise<APIGateway
     headers: { ...COMMON_HEADERS, ...CACHE_HEADERS, 'cdn-cache-control': 'max-age=300' },
     body: JSON.stringify({ count: airnodeAddresses.length, 'available-airnodes': airnodeAddresses }),
   };
+};
+
+export const paginateBatchWrite = async (params: AWS.DynamoDB.DocumentClient.BatchWriteItemInput) => {
+  if (isNil(params.RequestItems)) throw new Error('No item is found to put DynamoDB');
+
+  const groups = Object.entries(params.RequestItems).reduce((acc, [tableName, entries]) => {
+    const tableNameChunkedEntries: [string, AWS.DynamoDB.DocumentClient.WriteRequests][] = chunk(entries, 25).map(
+      (entry) => [tableName, entry]
+    );
+    return [...acc, ...tableNameChunkedEntries];
+  }, [] as [string, AWS.DynamoDB.DocumentClient.WriteRequests][]);
+
+  const writePromises = groups.map(async ([tableName, entries]) =>
+    docClient
+      .batchWrite({
+        RequestItems: { [tableName]: entries },
+      })
+      .promise()
+  );
+
+  await Promise.all(writePromises);
 };
