@@ -183,15 +183,13 @@ export const getData = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     return generateErrorResponse(400, 'Invalid request, path parameter must be an EVM address');
 
   const goReadDb = await go(() =>
-    docClient
-      .query({
-        TableName: tableName,
-        KeyConditionExpression: 'airnode = :airnode',
-        ExpressionAttributeValues: {
-          ':airnode': event.pathParameters?.airnode,
-        },
-      })
-      .promise()
+    paginateQuery({
+      TableName: tableName,
+      KeyConditionExpression: 'airnode = :airnode',
+      ExpressionAttributeValues: {
+        ':airnode': event.pathParameters?.airnode,
+      },
+    })
   );
   if (!goReadDb.success)
     return generateErrorResponse(500, 'Unable to get signed data from database', goReadDb.error.message);
@@ -217,6 +215,33 @@ export const listData = async (_event: APIGatewayProxyEvent): Promise<APIGateway
     headers: { ...COMMON_HEADERS, ...CACHE_HEADERS, 'cdn-cache-control': 'max-age=300' },
     body: JSON.stringify({ count: airnodeAddresses.length, 'available-airnodes': airnodeAddresses }),
   };
+};
+
+export const paginateQuery = async (params: AWS.DynamoDB.DocumentClient.QueryInput) => {
+  let lastEvaluatedKey = undefined;
+
+  const Items = [];
+  let Count = 0;
+  do {
+    const response: AWS.DynamoDB.DocumentClient.QueryOutput = await docClient
+      .query({
+        ...params,
+        Limit: 100,
+        ExclusiveStartKey: lastEvaluatedKey,
+      })
+      .promise();
+
+    const items = response.Items;
+
+    if (items && items.length > 0) {
+      Items.push(...items);
+      Count = Count + items.length;
+    }
+
+    lastEvaluatedKey = response.LastEvaluatedKey;
+  } while (!isNil(lastEvaluatedKey));
+
+  return { Count, Items };
 };
 
 export const paginateBatchWrite = async (params: AWS.DynamoDB.DocumentClient.BatchWriteItemInput) => {
