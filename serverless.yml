@@ -59,9 +59,9 @@ functions:
       - httpApi:
           path: /{airnode}
           method: get
-  listData:
+  listAirnodeAddresses:
     memorySize: 192
-    handler: src/handlers.listData
+    handler: src/handlers.listAirnodeAddresses
     events:
       - httpApi:
           path: /

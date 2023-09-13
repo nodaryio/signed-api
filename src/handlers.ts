@@ -204,7 +204,7 @@ export const getData = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
   };
 };
 
-export const listData = async (_event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
+export const listAirnodeAddresses = async (_event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
   const goScanDb = await go(() => docClient.scan({ TableName: tableName }).promise());
   if (!goScanDb.success) return generateErrorResponse(500, 'Unable to scan database', goScanDb.error.message);
 
