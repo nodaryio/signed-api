@@ -2,7 +2,7 @@ import * as dotenv from 'dotenv'; // see https://github.com/motdotla/dotenv#how-
 dotenv.config();
 import express from 'express';
 import { APIGatewayProxyEvent } from 'aws-lambda';
-import { getData, listData, batchUpsertData, upsertData } from './handlers';
+import { getData, listAirnodeAddresses, batchUpsertData, upsertData } from './handlers';
 
 const { PORT } = process.env;
 
@@ -31,7 +31,7 @@ app.get('/:airnode', async (req, res) => {
 });
 
 app.get('/', async (req, res) => {
-  const result = await listData({} as APIGatewayProxyEvent);
+  const result = await listAirnodeAddresses({} as APIGatewayProxyEvent);
   res.status(result.statusCode).header(result.headers).send(result.body);
 });
 
