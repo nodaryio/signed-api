@@ -62,10 +62,24 @@ The Nodary Signature Pool is publicly accessible at the following endpoint:
 
 The API provides the following endpoints:
 
-- `PUT /`: Upsert a single signed data.
-- `POST /`: Upsert a batch of signed data.
-- `GET /{airnode}`: Retrieve signed data for a specific airnode.
-- `GET /`: Retrieve a list of all signed data.
+### Local development
+
+Start local dynamodb server:
+
+```bash
+yarn dynamodb-local-up
+```
+
+Initialize tables:
+
+```bash
+yarn init-tables
+```
+
+Spin up local `express` server to mimic AWS API gateway:
+
+```bash
+yarn start-local
 
 ### Examples
 
