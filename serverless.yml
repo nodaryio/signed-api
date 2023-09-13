@@ -39,24 +39,28 @@ provider:
 
 functions:
   upsertData:
+    memorySize: 192
     handler: src/handlers.upsertData
     events:
       - httpApi:
           path: /
           method: put
   batchUpsertData:
+    memorySize: 512
     handler: src/handlers.batchUpsertData
     events:
       - httpApi:
           path: /
           method: post
   getData:
+    memorySize: 192
     handler: src/handlers.getData
     events:
       - httpApi:
           path: /{airnode}
           method: get
   listData:
+    memorySize: 192
     handler: src/handlers.listData
     events:
       - httpApi:
@@ -73,8 +77,8 @@ resources:
       Properties:
         TableName: signedDataPool
         ProvisionedThroughput:
-          ReadCapacityUnits: 1
-          WriteCapacityUnits: 1
+          ReadCapacityUnits: 5
+          WriteCapacityUnits: 5
         AttributeDefinitions:
           - AttributeName: airnode
             AttributeType: S

@@ -1,69 +1,69 @@
-import { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
-import AWS from "aws-sdk";
-import { PromiseError, batchSignedDataSchema, evmAddressSchema, signedDataSchema } from "./types";
-import { go, goSync } from "@api3/promise-utils";
-import { isEmpty, isNil, size } from "lodash";
-import { deriveBeaconId, recoverSignerAddress } from "./evm";
-import { generateErrorResponse, isBatchUnique } from "./utils";
-import { COMMON_HEADERS, MAX_BATCH_SIZE } from "./constants";
+import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
+import AWS from 'aws-sdk';
+import { chunk, isEmpty, isNil, omit, size, uniqBy } from 'lodash';
+import { go, goSync } from '@api3/promise-utils';
+import { PromiseError, batchSignedDataSchema, evmAddressSchema, signedDataSchema } from './types';
+import { deriveBeaconId, recoverSignerAddress } from './evm';
+import { generateErrorResponse, isBatchUnique } from './utils';
+import { CACHE_HEADERS, COMMON_HEADERS, MAX_BATCH_SIZE } from './constants';
 
 if (process.env.LOCAL_DEV) {
-  require("aws-sdk/lib/maintenance_mode_message").suppress = true;
+  require('aws-sdk/lib/maintenance_mode_message').suppress = true;
   const localAWSConfig = {
-    accessKeyId: "not-important",
-    secretAccessKey: "not-important",
-    region: "local",
-    endpoint: "http://localhost:8000",
+    accessKeyId: 'not-important',
+    secretAccessKey: 'not-important',
+    region: 'local',
+    endpoint: 'http://localhost:8000',
   };
   AWS.config.update(localAWSConfig);
-  console.log("AWS SDK was configured for local development.");
+  console.log('AWS SDK was configured for local development.');
 }
 
 const docClient = new AWS.DynamoDB.DocumentClient();
-const tableName = "signedDataPool";
+const tableName = 'signedDataPool';
 
 export const upsertData = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
-  if (isNil(event.body)) return generateErrorResponse(400, "Invalid request, http body is missing");
+  if (isNil(event.body)) return generateErrorResponse(400, 'Invalid request, http body is missing');
 
   const goJsonParseBody = goSync(() => JSON.parse(event.body as string));
-  if (!goJsonParseBody.success) return generateErrorResponse(400, "Invalid request, body must be in JSON");
+  if (!goJsonParseBody.success) return generateErrorResponse(400, 'Invalid request, body must be in JSON');
 
   const goValidateSchema = await go(() => signedDataSchema.parseAsync(goJsonParseBody.data));
   if (!goValidateSchema.success)
     return generateErrorResponse(
       400,
-      "Invalid request, body must fit schema for signed data",
-      goValidateSchema.error.message,
+      'Invalid request, body must fit schema for signed data',
+      goValidateSchema.error.message
     );
 
   const signedData = goValidateSchema.data;
 
   const goRecoverSigner = goSync(() => recoverSignerAddress(signedData));
   if (!goRecoverSigner.success)
-    return generateErrorResponse(400, "Unable to recover signer address", goRecoverSigner.error.message);
+    return generateErrorResponse(400, 'Unable to recover signer address', goRecoverSigner.error.message);
 
-  if (signedData.airnode !== goRecoverSigner.data) return generateErrorResponse(400, "Signature is invalid");
+  if (signedData.airnode !== goRecoverSigner.data) return generateErrorResponse(400, 'Signature is invalid');
 
   const goDeriveBeaconId = goSync(() => deriveBeaconId(signedData.airnode, signedData.templateId));
   if (!goDeriveBeaconId.success)
     return generateErrorResponse(
       400,
-      "Unable to derive beaconId by given airnode and templateId",
-      goDeriveBeaconId.error.message,
+      'Unable to derive beaconId by given airnode and templateId',
+      goDeriveBeaconId.error.message
     );
 
-  if (signedData.beaconId !== goDeriveBeaconId.data) return generateErrorResponse(400, "beaconId is invalid");
+  if (signedData.beaconId !== goDeriveBeaconId.data) return generateErrorResponse(400, 'beaconId is invalid');
 
   const goReadDb = await go(() =>
     docClient
       .get({ TableName: tableName, Key: { airnode: signedData.airnode, templateId: signedData.templateId } })
-      .promise(),
+      .promise()
   );
   if (!goReadDb.success)
     return generateErrorResponse(
       500,
-      "Unable to get signed data from database to validate timestamp",
-      goReadDb.error.message,
+      'Unable to get signed data from database to validate timestamp',
+      goReadDb.error.message
     );
 
   if (!isNil(goReadDb.data.Item) && parseInt(signedData.timestamp) <= parseInt(goReadDb.data.Item.timestamp))
@@ -71,23 +71,23 @@ export const upsertData = async (event: APIGatewayProxyEvent): Promise<APIGatewa
 
   const goWriteDb = await go(() => docClient.put({ TableName: tableName, Item: signedData }).promise());
   if (!goWriteDb.success)
-    return generateErrorResponse(500, "Unable to send signed data to database", goWriteDb.error.message);
+    return generateErrorResponse(500, 'Unable to send signed data to database', goWriteDb.error.message);
 
   return { statusCode: 201, headers: COMMON_HEADERS, body: JSON.stringify({ count: 1 }) };
 };
 
 export const batchUpsertData = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
-  if (isNil(event.body)) return generateErrorResponse(400, "Invalid request, http body is missing");
+  if (isNil(event.body)) return generateErrorResponse(400, 'Invalid request, http body is missing');
 
   const goJsonParseBody = goSync(() => JSON.parse(event.body as string));
-  if (!goJsonParseBody.success) return generateErrorResponse(400, "Invalid request, body must be in JSON");
+  if (!goJsonParseBody.success) return generateErrorResponse(400, 'Invalid request, body must be in JSON');
 
   const goValidateSchema = await go(() => batchSignedDataSchema.parseAsync(goJsonParseBody.data));
   if (!goValidateSchema.success)
     return generateErrorResponse(
       400,
-      "Invalid request, body must fit schema for batch of signed data",
-      goValidateSchema.error.message,
+      'Invalid request, body must fit schema for batch of signed data',
+      goValidateSchema.error.message
     );
 
   const batchSignedData = goValidateSchema.data;
@@ -100,39 +100,39 @@ export const batchUpsertData = async (event: APIGatewayProxyEvent): Promise<APIG
   */
 
   // Phase 1: Check whether batch is empty
-  if (isEmpty(batchSignedData)) return generateErrorResponse(400, "No signed data to push");
+  if (isEmpty(batchSignedData)) return generateErrorResponse(400, 'No signed data to push');
 
   // Phase 2: Check whether the size of batch exceeds a maximum batch size
   if (size(batchSignedData) > MAX_BATCH_SIZE)
     return generateErrorResponse(400, `Maximum batch size (${MAX_BATCH_SIZE}) exceeded`);
 
   // Phase 3: Check whether any duplications exist
-  if (!isBatchUnique(batchSignedData)) return generateErrorResponse(400, "No duplications are allowed");
+  if (!isBatchUnique(batchSignedData)) return generateErrorResponse(400, 'No duplications are allowed');
 
   // Phase 4: Check validations that can be done without using http request, returns fail response in first error
   const phase4Promises = batchSignedData.map(async (signedData) => {
     const goRecoverSigner = goSync(() => recoverSignerAddress(signedData));
     if (!goRecoverSigner.success)
       return Promise.reject(
-        generateErrorResponse(400, "Unable to recover signer address", goRecoverSigner.error.message, signedData),
+        generateErrorResponse(400, 'Unable to recover signer address', goRecoverSigner.error.message, signedData)
       );
 
     if (signedData.airnode !== goRecoverSigner.data)
-      return Promise.reject(generateErrorResponse(400, "Signature is invalid", undefined, signedData));
+      return Promise.reject(generateErrorResponse(400, 'Signature is invalid', undefined, signedData));
 
     const goDeriveBeaconId = goSync(() => deriveBeaconId(signedData.airnode, signedData.templateId));
     if (!goDeriveBeaconId.success)
       return Promise.reject(
         generateErrorResponse(
           400,
-          "Unable to derive beaconId by given airnode and templateId",
+          'Unable to derive beaconId by given airnode and templateId',
           goDeriveBeaconId.error.message,
-          signedData,
-        ),
+          signedData
+        )
       );
 
     if (signedData.beaconId !== goDeriveBeaconId.data)
-      return Promise.reject(generateErrorResponse(400, "beaconId is invalid", undefined, signedData));
+      return Promise.reject(generateErrorResponse(400, 'beaconId is invalid', undefined, signedData));
   });
 
   const goPhase4Results = await go<any, PromiseError<APIGatewayProxyResult>>(() => Promise.all(phase4Promises));
@@ -143,16 +143,16 @@ export const batchUpsertData = async (event: APIGatewayProxyEvent): Promise<APIG
     const goReadDb = await go(() =>
       docClient
         .get({ TableName: tableName, Key: { airnode: signedData.airnode, templateId: signedData.templateId } })
-        .promise(),
+        .promise()
     );
     if (!goReadDb.success)
       return Promise.reject(
         generateErrorResponse(
           500,
-          "Unable to get signed data from database to validate timestamp",
+          'Unable to get signed data from database to validate timestamp',
           goReadDb.error.message,
-          signedData,
-        ),
+          signedData
+        )
       );
 
     if (!isNil(goReadDb.data.Item) && parseInt(signedData.timestamp) <= parseInt(goReadDb.data.Item.timestamp))
@@ -164,54 +164,103 @@ export const batchUpsertData = async (event: APIGatewayProxyEvent): Promise<APIG
 
   // Phase 6: Write batch of validated data to the database
   const goBatchWriteDb = await go(() =>
-    docClient
-      .batchWrite({
-        RequestItems: { [tableName]: batchSignedData.map((signedData) => ({ PutRequest: { Item: signedData } })) },
-      })
-      .promise(),
+    paginateBatchWrite({
+      RequestItems: { [tableName]: batchSignedData.map((signedData) => ({ PutRequest: { Item: signedData } })) },
+    })
   );
   if (!goBatchWriteDb.success)
-    return generateErrorResponse(500, "Unable to send batch of signed data to database", goBatchWriteDb.error.message);
+    return generateErrorResponse(500, 'Unable to send batch of signed data to database', goBatchWriteDb.error.message);
 
   return { statusCode: 201, headers: COMMON_HEADERS, body: JSON.stringify({ count: batchSignedData.length }) };
 };
 
 export const getData = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
   if (isNil(event.pathParameters?.airnode))
-    return generateErrorResponse(400, "Invalid request, path parameter airnode address is missing");
+    return generateErrorResponse(400, 'Invalid request, path parameter airnode address is missing');
 
   const goValidateSchema = await go(() => evmAddressSchema.parseAsync(event.pathParameters?.airnode));
   if (!goValidateSchema.success)
-    return generateErrorResponse(400, "Invalid request, path parameter must be an EVM address");
+    return generateErrorResponse(400, 'Invalid request, path parameter must be an EVM address');
 
   const goReadDb = await go(() =>
-    docClient
-      .query({
-        TableName: tableName,
-        KeyConditionExpression: "airnode = :airnode",
-        ExpressionAttributeValues: {
-          ":airnode": event.pathParameters?.airnode,
-        },
-      })
-      .promise(),
+    paginateQuery({
+      TableName: tableName,
+      KeyConditionExpression: 'airnode = :airnode',
+      ExpressionAttributeValues: {
+        ':airnode': event.pathParameters?.airnode,
+      },
+    })
   );
   if (!goReadDb.success)
-    return generateErrorResponse(500, "Unable to get signed data from database", goReadDb.error.message);
+    return generateErrorResponse(500, 'Unable to get signed data from database', goReadDb.error.message);
+
+  // Transform array of signed data to be in form {[beaconId]: SignedData}
+  const data = goReadDb.data.Items?.reduce((acc, Item) => ({ ...acc, [Item.beaconId]: omit(Item, 'beaconId') }), {});
 
   return {
     statusCode: 200,
-    headers: COMMON_HEADERS,
-    body: JSON.stringify({ count: goReadDb.data.Count, data: goReadDb.data.Items }),
+    headers: { ...COMMON_HEADERS, ...CACHE_HEADERS },
+    body: JSON.stringify({ count: goReadDb.data.Count, data }),
   };
 };
 
-export const listData = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
+export const listData = async (_event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
   const goScanDb = await go(() => docClient.scan({ TableName: tableName }).promise());
-  if (!goScanDb.success) return generateErrorResponse(500, "Unable to scan database", goScanDb.error.message);
+  if (!goScanDb.success) return generateErrorResponse(500, 'Unable to scan database', goScanDb.error.message);
+
+  const airnodeAddresses = uniqBy(goScanDb.data.Items, 'airnode').map((Item) => Item.airnode);
 
   return {
     statusCode: 200,
-    headers: COMMON_HEADERS,
-    body: JSON.stringify({ count: goScanDb.data.Count, data: goScanDb.data.Items }),
+    headers: { ...COMMON_HEADERS, ...CACHE_HEADERS, 'cdn-cache-control': 'max-age=300' },
+    body: JSON.stringify({ count: airnodeAddresses.length, 'available-airnodes': airnodeAddresses }),
   };
+};
+
+export const paginateQuery = async (params: AWS.DynamoDB.DocumentClient.QueryInput) => {
+  let lastEvaluatedKey = undefined;
+
+  const Items = [];
+  let Count = 0;
+  do {
+    const response: AWS.DynamoDB.DocumentClient.QueryOutput = await docClient
+      .query({
+        ...params,
+        Limit: 100,
+        ExclusiveStartKey: lastEvaluatedKey,
+      })
+      .promise();
+
+    const items = response.Items;
+
+    if (items && items.length > 0) {
+      Items.push(...items);
+      Count = Count + items.length;
+    }
+
+    lastEvaluatedKey = response.LastEvaluatedKey;
+  } while (!isNil(lastEvaluatedKey));
+
+  return { Count, Items };
+};
+
+export const paginateBatchWrite = async (params: AWS.DynamoDB.DocumentClient.BatchWriteItemInput) => {
+  if (isNil(params.RequestItems)) throw new Error('No item is found to put DynamoDB');
+
+  const groups = Object.entries(params.RequestItems).reduce((acc, [tableName, entries]) => {
+    const tableNameChunkedEntries: [string, AWS.DynamoDB.DocumentClient.WriteRequests][] = chunk(entries, 25).map(
+      (entry) => [tableName, entry]
+    );
+    return [...acc, ...tableNameChunkedEntries];
+  }, [] as [string, AWS.DynamoDB.DocumentClient.WriteRequests][]);
+
+  const writePromises = groups.map(async ([tableName, entries]) =>
+    docClient
+      .batchWrite({
+        RequestItems: { [tableName]: entries },
+      })
+      .promise()
+  );
+
+  await Promise.all(writePromises);
 };
