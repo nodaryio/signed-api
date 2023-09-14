@@ -2,8 +2,8 @@ import AWS from 'aws-sdk';
 import { CreateTableInput } from 'aws-sdk/clients/dynamodb';
 
 const localAWSConfig = {
-  accessKeyId: 'not-important',
-  secretAccessKey: 'not-important',
+  accessKeyId: 'AKIAIOSFODNN7EXAMPLE',
+  secretAccessKey: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',
   region: 'local',
   endpoint: 'http://localhost:8000',
 };

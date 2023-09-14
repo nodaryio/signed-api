@@ -10,8 +10,8 @@ import { CACHE_HEADERS, COMMON_HEADERS, MAX_BATCH_SIZE } from './constants';
 if (process.env.LOCAL_DEV) {
   require('aws-sdk/lib/maintenance_mode_message').suppress = true;
   const localAWSConfig = {
-    accessKeyId: 'not-important',
-    secretAccessKey: 'not-important',
+    accessKeyId: 'AKIAIOSFODNN7EXAMPLE',
+    secretAccessKey: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',
     region: 'local',
     endpoint: 'http://localhost:8000',
   };
